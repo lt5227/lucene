@@ -36,16 +36,18 @@ import org.apache.lucene.facet.FacetResult;
 import org.apache.lucene.facet.FacetTestCase;
 import org.apache.lucene.facet.Facets;
 import org.apache.lucene.facet.FacetsCollector;
+import org.apache.lucene.facet.FacetsCollectorManager;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.LabelAndValue;
+import org.apache.lucene.facet.MultiDoubleValuesSource;
 import org.apache.lucene.facet.MultiFacets;
+import org.apache.lucene.facet.MultiLongValuesSource;
 import org.apache.lucene.facet.taxonomy.TaxonomyReader;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyReader;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Explanation;
@@ -59,9 +61,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.TestUtil;
 
 public class TestRangeFacetCounts extends FacetTestCase {
 
@@ -83,9 +86,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -101,6 +103,13 @@ public class TestRangeFacetCounts extends FacetTestCase {
     assertEquals(
         "dim=field path=[] value=22 childCount=5\n  less than 10 (10)\n  less than or equal to 10 (11)\n  over 90 (9)\n  90 or above (10)\n  over 1000 (1)\n",
         result.toString());
+
+    // test getTopChildren(0, dim)
+    expectThrows(
+        IllegalArgumentException.class,
+        () -> {
+          facets.getTopChildren(0, "field");
+        });
 
     r.close();
     d.close();
@@ -129,9 +138,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -180,9 +188,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -221,9 +228,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -240,6 +246,28 @@ public class TestRangeFacetCounts extends FacetTestCase {
     assertEquals(
         "dim=field path=[] value=22 childCount=5\n  less than 10 (10)\n  less than or equal to 10 (11)\n  over 90 (9)\n  90 or above (10)\n  over 1000 (1)\n",
         result.get(0).toString());
+
+    // test getAllDims(1)
+    List<FacetResult> test1Child = facets.getAllDims(1);
+    assertEquals(1, test1Child.size());
+    assertEquals(
+        "dim=field path=[] value=22 childCount=5\n  less than 10 (10)\n  less than or equal to 10 (11)\n  over 90 (9)\n  90 or above (10)\n  over 1000 (1)\n",
+        test1Child.get(0).toString());
+
+    // test default implementation of getTopDims
+    List<FacetResult> topNDimsResult = facets.getTopDims(1, 1);
+    assertEquals(test1Child, topNDimsResult);
+
+    // test getTopDims(0, 1)
+    List<FacetResult> topDimsResults2 = facets.getTopDims(0, 1);
+    assertEquals(0, topDimsResults2.size());
+
+    // test getAllDims(0)
+    expectThrows(
+        IllegalArgumentException.class,
+        () -> {
+          facets.getAllDims(0);
+        });
 
     r.close();
     d.close();
@@ -285,9 +313,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -325,9 +352,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new LongRangeFacetCounts(
@@ -342,7 +368,6 @@ public class TestRangeFacetCounts extends FacetTestCase {
     assertEquals(
         "dim=field path=[] value=41 childCount=4\n  0-10 (11)\n  10-20 (11)\n  20-30 (11)\n  30-40 (11)\n",
         result.toString());
-
     r.close();
     d.close();
   }
@@ -361,9 +386,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets = new LongRangeFacetCounts("field", fc);
 
@@ -391,9 +415,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets = new LongRangeFacetCounts("field", fc);
 
@@ -537,10 +560,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
 
     IndexReader r = w.getReader();
 
-    FacetsCollector fc = new FacetsCollector();
-
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
     Facets facets =
         new DoubleRangeFacetCounts(
             "field",
@@ -575,10 +596,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
 
     IndexReader r = w.getReader();
 
-    FacetsCollector fc = new FacetsCollector();
-
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
     Facets facets =
         new DoubleRangeFacetCounts(
             "field",
@@ -624,9 +643,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets =
         new DoubleRangeFacetCounts(
@@ -754,8 +772,7 @@ public class TestRangeFacetCounts extends FacetTestCase {
         }
       }
 
-      FacetsCollector sfc = new FacetsCollector();
-      s.search(new MatchAllDocsQuery(), sfc);
+      FacetsCollector sfc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
       Query fastMatchQuery;
       if (random().nextBoolean()) {
         if (random().nextBoolean()) {
@@ -766,28 +783,67 @@ public class TestRangeFacetCounts extends FacetTestCase {
       } else {
         fastMatchQuery = null;
       }
-      LongValuesSource vs = LongValuesSource.fromLongField("field");
-      Facets facets = new LongRangeFacetCounts("field", vs, sfc, fastMatchQuery, ranges);
-      FacetResult result = facets.getTopChildren(10, "field");
-      assertEquals(numRange, result.labelValues.length);
-      for (int rangeID = 0; rangeID < numRange; rangeID++) {
-        if (VERBOSE) {
-          System.out.println("  range " + rangeID + " expectedCount=" + expectedCounts[rangeID]);
-        }
-        LabelAndValue subNode = result.labelValues[rangeID];
-        assertEquals("r" + rangeID, subNode.label);
-        assertEquals(expectedCounts[rangeID], subNode.value.intValue());
 
-        LongRange range = ranges[rangeID];
-
-        // Test drill-down:
-        DrillDownQuery ddq = new DrillDownQuery(config);
+      if (random().nextBoolean()) {
+        LongValuesSource vs = LongValuesSource.fromLongField("field");
+        MultiLongValuesSource mvs = MultiLongValuesSource.fromLongField("field");
+        Facets facets;
         if (random().nextBoolean()) {
-          ddq.add("field", LongPoint.newRangeQuery("field", range.min, range.max));
+          facets = new LongRangeFacetCounts("field", vs, sfc, fastMatchQuery, ranges);
+        } else if (random().nextBoolean()) {
+          facets = new LongRangeFacetCounts("field", mvs, sfc, fastMatchQuery, ranges);
         } else {
-          ddq.add("field", range.getQuery(fastMatchQuery, vs));
+          facets =
+              new LongRangeFacetCounts(
+                  "field", MultiLongValuesSource.fromSingleValued(vs), sfc, fastMatchQuery, ranges);
         }
-        assertEquals(expectedCounts[rangeID], s.count(ddq));
+        FacetResult result = facets.getTopChildren(10, "field");
+        assertEquals(numRange, result.labelValues.length);
+        for (int rangeID = 0; rangeID < numRange; rangeID++) {
+          if (VERBOSE) {
+            System.out.println("  range " + rangeID + " expectedCount=" + expectedCounts[rangeID]);
+          }
+          LabelAndValue subNode = result.labelValues[rangeID];
+          assertEquals("r" + rangeID, subNode.label);
+          assertEquals(expectedCounts[rangeID], subNode.value.intValue());
+
+          LongRange range = ranges[rangeID];
+
+          // Test drill-down:
+          DrillDownQuery ddq = new DrillDownQuery(config);
+          if (random().nextBoolean()) {
+            ddq.add("field", LongPoint.newRangeQuery("field", range.min, range.max));
+          } else if (random().nextBoolean()) {
+            ddq.add("field", range.getQuery(fastMatchQuery, mvs));
+          } else {
+            ddq.add("field", range.getQuery(fastMatchQuery, vs));
+          }
+          assertEquals(expectedCounts[rangeID], s.count(ddq));
+        }
+      } else {
+        MultiLongValuesSource vs = MultiLongValuesSource.fromLongField("field");
+        Facets facets = new LongRangeFacetCounts("field", vs, sfc, fastMatchQuery, ranges);
+        FacetResult result = facets.getTopChildren(10, "field");
+        assertEquals(numRange, result.labelValues.length);
+        for (int rangeID = 0; rangeID < numRange; rangeID++) {
+          if (VERBOSE) {
+            System.out.println("  range " + rangeID + " expectedCount=" + expectedCounts[rangeID]);
+          }
+          LabelAndValue subNode = result.labelValues[rangeID];
+          assertEquals("r" + rangeID, subNode.label);
+          assertEquals(expectedCounts[rangeID], subNode.value.intValue());
+
+          LongRange range = ranges[rangeID];
+
+          // Test drill-down:
+          DrillDownQuery ddq = new DrillDownQuery(config);
+          if (random().nextBoolean()) {
+            ddq.add("field", LongPoint.newRangeQuery("field", range.min, range.max));
+          } else {
+            ddq.add("field", range.getQuery(fastMatchQuery, vs));
+          }
+          assertEquals(expectedCounts[rangeID], s.count(ddq));
+        }
       }
     }
 
@@ -912,8 +968,7 @@ public class TestRangeFacetCounts extends FacetTestCase {
         }
       }
 
-      FacetsCollector sfc = new FacetsCollector();
-      s.search(new MatchAllDocsQuery(), sfc);
+      FacetsCollector sfc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
       Query fastMatchQuery;
       if (random().nextBoolean()) {
         if (random().nextBoolean()) {
@@ -924,7 +979,16 @@ public class TestRangeFacetCounts extends FacetTestCase {
       } else {
         fastMatchQuery = null;
       }
-      Facets facets = new LongRangeFacetCounts("field", null, sfc, fastMatchQuery, ranges);
+      Facets facets;
+      if (random().nextBoolean()) {
+        facets =
+            new LongRangeFacetCounts(
+                "field", MultiLongValuesSource.fromLongField("field"), sfc, fastMatchQuery, ranges);
+      } else {
+        facets =
+            new LongRangeFacetCounts(
+                "field", (MultiLongValuesSource) null, sfc, fastMatchQuery, ranges);
+      }
       FacetResult result = facets.getTopChildren(10, "field");
       assertEquals(numRange, result.labelValues.length);
       for (int rangeID = 0; rangeID < numRange; rangeID++) {
@@ -1056,8 +1120,7 @@ public class TestRangeFacetCounts extends FacetTestCase {
         }
       }
 
-      FacetsCollector sfc = new FacetsCollector();
-      s.search(new MatchAllDocsQuery(), sfc);
+      FacetsCollector sfc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
       Query fastMatchFilter;
       if (random().nextBoolean()) {
         if (random().nextBoolean()) {
@@ -1069,7 +1132,21 @@ public class TestRangeFacetCounts extends FacetTestCase {
         fastMatchFilter = null;
       }
       DoubleValuesSource vs = DoubleValuesSource.fromDoubleField("field");
-      Facets facets = new DoubleRangeFacetCounts("field", vs, sfc, fastMatchFilter, ranges);
+      MultiDoubleValuesSource mvs = MultiDoubleValuesSource.fromDoubleField("field");
+      Facets facets;
+      if (random().nextBoolean()) {
+        facets = new DoubleRangeFacetCounts("field", vs, sfc, fastMatchFilter, ranges);
+      } else if (random().nextBoolean()) {
+        facets =
+            new DoubleRangeFacetCounts(
+                "field",
+                MultiDoubleValuesSource.fromSingleValued(vs),
+                sfc,
+                fastMatchFilter,
+                ranges);
+      } else {
+        facets = new DoubleRangeFacetCounts("field", mvs, sfc, fastMatchFilter, ranges);
+      }
       FacetResult result = facets.getTopChildren(10, "field");
       assertEquals(numRange, result.labelValues.length);
       for (int rangeID = 0; rangeID < numRange; rangeID++) {
@@ -1086,8 +1163,10 @@ public class TestRangeFacetCounts extends FacetTestCase {
         DrillDownQuery ddq = new DrillDownQuery(config);
         if (random().nextBoolean()) {
           ddq.add("field", DoublePoint.newRangeQuery("field", range.min, range.max));
-        } else {
+        } else if (random().nextBoolean()) {
           ddq.add("field", range.getQuery(fastMatchFilter, vs));
+        } else {
+          ddq.add("field", range.getQuery(fastMatchFilter, mvs));
         }
 
         assertEquals(expectedCounts[rangeID], s.count(ddq));
@@ -1210,8 +1289,7 @@ public class TestRangeFacetCounts extends FacetTestCase {
         }
       }
 
-      FacetsCollector sfc = new FacetsCollector();
-      s.search(new MatchAllDocsQuery(), sfc);
+      FacetsCollector sfc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
       Query fastMatchFilter;
       if (random().nextBoolean()) {
         if (random().nextBoolean()) {
@@ -1222,7 +1300,20 @@ public class TestRangeFacetCounts extends FacetTestCase {
       } else {
         fastMatchFilter = null;
       }
-      Facets facets = new DoubleRangeFacetCounts("field", null, sfc, fastMatchFilter, ranges);
+      Facets facets;
+      if (random().nextBoolean()) {
+        facets =
+            new DoubleRangeFacetCounts(
+                "field",
+                MultiDoubleValuesSource.fromDoubleField("field"),
+                sfc,
+                fastMatchFilter,
+                ranges);
+      } else {
+        facets =
+            new DoubleRangeFacetCounts(
+                "field", (MultiDoubleValuesSource) null, sfc, fastMatchFilter, ranges);
+      }
       FacetResult result = facets.getTopChildren(10, "field");
       assertEquals(numRange, result.labelValues.length);
       for (int rangeID = 0; rangeID < numRange; rangeID++) {
@@ -1273,10 +1364,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
 
     IndexReader r = w.getReader();
 
-    FacetsCollector fc = new FacetsCollector();
-
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
     Facets facets =
         new LongRangeFacetCounts(
             "field",
@@ -1317,10 +1406,8 @@ public class TestRangeFacetCounts extends FacetTestCase {
 
     IndexReader r = w.getReader();
 
-    FacetsCollector fc = new FacetsCollector();
-
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
     Facets facets =
         new LongRangeFacetCounts(
             "field",
@@ -1465,12 +1552,10 @@ public class TestRangeFacetCounts extends FacetTestCase {
 
     FacetsConfig config = new FacetsConfig();
 
-    FacetsCollector fc = new FacetsCollector();
-
     IndexReader r = writer.getReader();
 
     IndexSearcher s = newSearcher(r, false, false);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     final DoubleRange[] ranges =
         new DoubleRange[] {
@@ -1496,7 +1581,14 @@ public class TestRangeFacetCounts extends FacetTestCase {
       System.out.println("TEST: fastMatchFilter=" + fastMatchFilter);
     }
 
-    Facets facets = new DoubleRangeFacetCounts("field", vs, fc, fastMatchFilter, ranges);
+    Facets facets;
+    if (random().nextBoolean()) {
+      facets = new DoubleRangeFacetCounts("field", vs, fc, fastMatchFilter, ranges);
+    } else {
+      facets =
+          new DoubleRangeFacetCounts(
+              "field", MultiDoubleValuesSource.fromSingleValued(vs), fc, fastMatchFilter, ranges);
+    }
 
     assertEquals(
         "dim=field path=[] value=3 childCount=6\n  < 1 (0)\n  < 2 (1)\n  < 5 (3)\n  < 10 (3)\n  < 20 (3)\n  < 50 (3)\n",
@@ -1504,7 +1596,13 @@ public class TestRangeFacetCounts extends FacetTestCase {
     assertTrue(fastMatchFilter == null || filterWasUsed.get());
 
     DrillDownQuery ddq = new DrillDownQuery(config);
-    ddq.add("field", ranges[1].getQuery(fastMatchFilter, vs));
+    if (random().nextBoolean()) {
+      ddq.add("field", ranges[1].getQuery(fastMatchFilter, vs));
+    } else {
+      ddq.add(
+          "field",
+          ranges[1].getQuery(fastMatchFilter, MultiDoubleValuesSource.fromSingleValued(vs)));
+    }
 
     // Test simple drill-down:
     assertEquals(1, s.search(ddq, 10).totalHits.value);
@@ -1521,7 +1619,11 @@ public class TestRangeFacetCounts extends FacetTestCase {
               throws IOException {
             assert drillSideways.length == 1;
             return new DoubleRangeFacetCounts(
-                "field", vs, drillSideways[0], fastMatchFilter, ranges);
+                "field",
+                MultiDoubleValuesSource.fromSingleValued(vs),
+                drillSideways[0],
+                fastMatchFilter,
+                ranges);
           }
 
           @Override

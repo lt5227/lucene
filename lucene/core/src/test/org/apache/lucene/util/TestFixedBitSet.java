@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.tests.util.BaseBitSetTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 
 public class TestFixedBitSet extends BaseBitSetTestCase<FixedBitSet> {
 
@@ -32,6 +34,19 @@ public class TestFixedBitSet extends BaseBitSetTestCase<FixedBitSet> {
       set.set(doc);
     }
     return set;
+  }
+
+  public void testApproximateCardinality() {
+    // The approximate cardinality works in such a way that it should be pretty accurate on a bitset
+    // whose bits are uniformly distributed.
+    final FixedBitSet set = new FixedBitSet(TestUtil.nextInt(random(), 100_000, 200_000));
+    final int first = random().nextInt(10);
+    final int interval = TestUtil.nextInt(random(), 10, 20);
+    for (int i = first; i < set.length(); i += interval) {
+      set.set(i);
+    }
+    final int cardinality = set.cardinality();
+    assertEquals(cardinality, set.approximateCardinality(), cardinality / 20); // 5% error at most
   }
 
   void doGet(java.util.BitSet a, FixedBitSet b) {

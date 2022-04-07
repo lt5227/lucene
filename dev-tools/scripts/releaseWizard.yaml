@@ -88,7 +88,7 @@ templates:
 
     The Lucene PMC is pleased to announce the release of Apache Lucene {{ release_version }}.
 
-    Apache Lucene is a high-performance, full-featured text search engine library written entirely in Java. It is a technology suitable for nearly any application that requires full-text search, especially cross-platform.
+    Apache Lucene is a high-performance, full-featured search engine library written entirely in Java. It is a technology suitable for nearly any application that requires structured search, full-text search, faceting, nearest-neighbor search across high-dimensionality vectors, spell correction or query suggestions.
 
     This release contains numerous bug fixes, optimizations, and improvements, some of which are highlighted below. The release is available for immediate download at:
 
@@ -281,6 +281,13 @@ groups:
     title: Select JIRA issues to be included
     description: Set the appropriate "Fix Version" in JIRA for the issues that should be included in the release.
   - !Todo
+    id: fix_build_failures
+    title: Look into common build failures
+    description: |
+      Look over recent build results sent to the builds@lucene.apache.org list and try to address any recurring
+      failures. It's best to fix common failures now, so they don't pop up later and interfere with release smoke
+      testing. Build email archives are available at https://lists.apache.org/list.html?builds@lucene.apache.org.
+  - !Todo
     id: decide_branch_date
     title: Decide the date for branching
     types:
@@ -291,7 +298,7 @@ groups:
       name: branch_date
   - !Todo
     id: decide_freeze_length
-    title: Decide the lenght of feature freeze
+    title: Decide the length of feature freeze
     types:
     - major
     - minor
@@ -977,7 +984,7 @@ groups:
         cmd: "{{ gradle_cmd }} documentation -Dversion.release={{ release_version }}"
         comment: Build documentation
       - !Command
-        cmd: svn -m "Add docs, changes and javadocs for Lucene {{ release_version }}"  import {{ git_checkout_folder }}/lucene/build/docs  https://svn.apache.org/repos/infra/sites/lucene/core/{{ version }}
+        cmd: svn -m "Add docs, changes and javadocs for Lucene {{ release_version }}"  import {{ git_checkout_folder }}/lucene/documentation/build/site  https://svn.apache.org/repos/infra/sites/lucene/core/{{ version }}
         logfile: add-docs-lucene.log
         comment: Add docs for Lucene
   - !Todo

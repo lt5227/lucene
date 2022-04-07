@@ -30,14 +30,14 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 
 /** Tests long value facets. */
 public class TestLongValueFacetCounts extends LuceneTestCase {
@@ -59,9 +59,8 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     LongValueFacetCounts facets = new LongValueFacetCounts("field", fc);
 
@@ -111,9 +110,8 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     LongValueFacetCounts facets = new LongValueFacetCounts("field", fc);
 
@@ -143,9 +141,8 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
     IndexReader r = w.getReader();
     w.close();
 
-    FacetsCollector fc = new FacetsCollector();
     IndexSearcher s = newSearcher(r);
-    s.search(new MatchAllDocsQuery(), fc);
+    FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
 
     Facets facets = new LongValueFacetCounts("field", fc);
 
@@ -155,6 +152,27 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
         "dim=field path=[] value=101 childCount=6\n  0 (20)\n  1 (20)\n  2 (20)\n  "
             + "3 (20)\n  4 (20)\n  9223372036854775807 (1)\n",
         result.get(0).toString());
+
+    // test default implementation of getTopDims
+    List<FacetResult> getTopDimResult = facets.getTopDims(1, 1);
+    assertEquals(1, getTopDimResult.size());
+    assertEquals(
+        "dim=field path=[] value=101 childCount=6\n  0 (20)\n", getTopDimResult.get(0).toString());
+
+    // test getTopDims(10, 10) and expect same results from getAllDims(10)
+    List<FacetResult> allDimsResults = facets.getTopDims(10, 10);
+    assertEquals(result, allDimsResults);
+
+    // test getTopDims(0, 1)
+    List<FacetResult> topDimsResults2 = facets.getTopDims(0, 1);
+    assertEquals(0, topDimsResults2.size());
+    // test getAllDims(0)
+    expectThrows(
+        IllegalArgumentException.class,
+        () -> {
+          facets.getAllDims(0);
+        });
+
     r.close();
     d.close();
   }
@@ -204,7 +222,6 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
 
     int iters = atLeast(100);
     for (int iter = 0; iter < iters; iter++) {
-      FacetsCollector fc = new FacetsCollector();
       if (VERBOSE) {
         System.out.println("\nTEST: iter=" + iter);
         System.out.println("  test all docs");
@@ -231,13 +248,24 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
 
       LongValueFacetCounts facetCounts;
       if (random().nextBoolean()) {
-        s.search(new MatchAllDocsQuery(), fc);
+        FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
         if (random().nextBoolean()) {
           if (VERBOSE) {
             System.out.println("  use value source");
           }
-          facetCounts =
-              new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), fc);
+          if (random().nextBoolean()) {
+            facetCounts =
+                new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), fc);
+          } else if (random().nextBoolean()) {
+            facetCounts =
+                new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), fc);
+          } else {
+            facetCounts =
+                new LongValueFacetCounts(
+                    "field",
+                    MultiLongValuesSource.fromSingleValued(LongValuesSource.fromLongField("field")),
+                    fc);
+          }
         } else {
           if (VERBOSE) {
             System.out.println("  use doc values");
@@ -250,8 +278,19 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
           if (VERBOSE) {
             System.out.println("  count all value source");
           }
-          facetCounts =
-              new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), r);
+          if (random().nextBoolean()) {
+            facetCounts =
+                new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), r);
+          } else if (random().nextBoolean()) {
+            facetCounts =
+                new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), r);
+          } else {
+            facetCounts =
+                new LongValueFacetCounts(
+                    "field",
+                    MultiLongValuesSource.fromSingleValued(LongValuesSource.fromLongField("field")),
+                    r);
+          }
         } else {
           if (VERBOSE) {
             System.out.println("  count all doc values");
@@ -309,8 +348,8 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
         System.out.println("  test id range " + minId + "-" + maxId);
       }
 
-      fc = new FacetsCollector();
-      s.search(IntPoint.newRangeQuery("id", minId, maxId), fc);
+      FacetsCollector fc =
+          s.search(IntPoint.newRangeQuery("id", minId, maxId), new FacetsCollectorManager());
       if (random().nextBoolean()) {
         if (VERBOSE) {
           System.out.println("  use doc values");
@@ -320,8 +359,19 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
         if (VERBOSE) {
           System.out.println("  use value source");
         }
-        facetCounts =
-            new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), fc);
+        if (random().nextBoolean()) {
+          facetCounts =
+              new LongValueFacetCounts("field", LongValuesSource.fromLongField("field"), fc);
+        } else if (random().nextBoolean()) {
+          facetCounts =
+              new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), fc);
+        } else {
+          facetCounts =
+              new LongValueFacetCounts(
+                  "field",
+                  MultiLongValuesSource.fromSingleValued(LongValuesSource.fromLongField("field")),
+                  fc);
+        }
       }
 
       expected = new HashMap<>();
@@ -448,7 +498,6 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
 
     int iters = atLeast(100);
     for (int iter = 0; iter < iters; iter++) {
-      FacetsCollector fc = new FacetsCollector();
       if (VERBOSE) {
         System.out.println("\nTEST: iter=" + iter);
         System.out.println("  test all docs");
@@ -472,17 +521,27 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
 
       LongValueFacetCounts facetCounts;
       if (random().nextBoolean()) {
-        s.search(new MatchAllDocsQuery(), fc);
+        FacetsCollector fc = s.search(new MatchAllDocsQuery(), new FacetsCollectorManager());
         if (VERBOSE) {
           System.out.println("  use doc values");
         }
-        facetCounts = new LongValueFacetCounts("field", fc);
+        if (random().nextBoolean()) {
+          facetCounts = new LongValueFacetCounts("field", fc);
+        } else {
+          facetCounts =
+              new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), fc);
+        }
       } else {
         // optimized count all:
         if (VERBOSE) {
           System.out.println("  count all doc values");
         }
-        facetCounts = new LongValueFacetCounts("field", r);
+        if (random().nextBoolean()) {
+          facetCounts = new LongValueFacetCounts("field", r);
+        } else {
+          facetCounts =
+              new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), r);
+        }
       }
 
       FacetResult actual = facetCounts.getAllChildrenSortByValue();
@@ -534,10 +593,14 @@ public class TestLongValueFacetCounts extends LuceneTestCase {
         System.out.println("  test id range " + minId + "-" + maxId);
       }
 
-      fc = new FacetsCollector();
-      s.search(IntPoint.newRangeQuery("id", minId, maxId), fc);
-      // cannot use value source here because we are multi valued
-      facetCounts = new LongValueFacetCounts("field", fc);
+      FacetsCollector fc =
+          s.search(IntPoint.newRangeQuery("id", minId, maxId), new FacetsCollectorManager());
+      if (random().nextBoolean()) {
+        facetCounts = new LongValueFacetCounts("field", fc);
+      } else {
+        facetCounts =
+            new LongValueFacetCounts("field", MultiLongValuesSource.fromLongField("field"), fc);
+      }
 
       expected = new HashMap<>();
       expectedTotalCount = 0;

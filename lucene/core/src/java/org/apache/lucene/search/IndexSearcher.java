@@ -138,6 +138,16 @@ public class IndexSearcher {
   }
 
   /**
+   * Expert: returns leaf contexts associated with this searcher. This is an internal method exposed
+   * for tests only.
+   *
+   * @lucene.internal
+   */
+  public List<LeafReaderContext> getLeafContexts() {
+    return leafContexts;
+  }
+
+  /**
    * Expert: Get the default {@link QueryCache} or {@code null} if the cache is disabled.
    *
    * @lucene.internal
@@ -430,9 +440,13 @@ public class IndexSearcher {
     }
   }
 
-  /** Count how many documents match the given query. */
+  /**
+   * Count how many documents match the given query. May be faster than counting number of hits by
+   * collecting all matches, as the number of hits is retrieved from the index statistics when
+   * possible.
+   */
   public int count(Query query) throws IOException {
-    query = rewrite(query);
+    query = rewrite(query, false);
     final Weight weight = createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1);
 
     final CollectorManager<ShortcutHitCountCollector, Integer> shortcutCollectorManager =
@@ -537,7 +551,7 @@ public class IndexSearcher {
    *     clauses.
    */
   public void search(Query query, Collector results) throws IOException {
-    query = rewrite(query);
+    query = rewrite(query, results.scoreMode().needsScores());
     search(leafContexts, createWeight(query, results.scoreMode(), 1), results);
   }
 
@@ -668,7 +682,7 @@ public class IndexSearcher {
   public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager)
       throws IOException {
     final C firstCollector = collectorManager.newCollector();
-    query = rewrite(query);
+    query = rewrite(query, firstCollector.scoreMode().needsScores());
     final Weight weight = createWeight(query, firstCollector.scoreMode(), 1);
     return search(weight, collectorManager, firstCollector);
   }
@@ -779,6 +793,15 @@ public class IndexSearcher {
     }
     query.visit(getNumClausesCheckVisitor());
     return query;
+  }
+
+  private Query rewrite(Query original, boolean needsScores) throws IOException {
+    if (needsScores) {
+      return rewrite(original);
+    } else {
+      // Take advantage of the few extra rewrite rules of ConstantScoreQuery.
+      return rewrite(new ConstantScoreQuery(original));
+    }
   }
 
   /**
@@ -949,10 +972,7 @@ public class IndexSearcher {
     long sumTotalTermFreq = 0;
     long sumDocFreq = 0;
     for (LeafReaderContext leaf : reader.leaves()) {
-      final Terms terms = leaf.reader().terms(field);
-      if (terms == null) {
-        continue;
-      }
+      final Terms terms = Terms.getTerms(leaf.reader(), field);
       docCount += terms.getDocCount();
       sumTotalTermFreq += terms.getSumTotalTermFreq();
       sumDocFreq += terms.getSumDocFreq();

@@ -25,24 +25,24 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 
@@ -436,8 +436,14 @@ public class TestFuzzyQuery extends LuceneTestCase {
     IndexSearcher searcher = newSearcher(reader);
     writer.close();
 
-    FuzzyQuery query = new FuzzyQuery(new Term("field", "lucene"));
-    query.setRewriteMethod(new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(50));
+    FuzzyQuery query =
+        new FuzzyQuery(
+            new Term("field", "lucene"),
+            FuzzyQuery.defaultMaxEdits,
+            FuzzyQuery.defaultPrefixLength,
+            FuzzyQuery.defaultMaxExpansions,
+            FuzzyQuery.defaultTranspositions,
+            new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(50));
     ScoreDoc[] hits = searcher.search(query, 1000).scoreDocs;
     assertEquals(3, hits.length);
     // normally, 'Lucenne' would be the first result as IDF will skew the score.
